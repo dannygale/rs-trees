@@ -2,6 +2,8 @@ use std::cmp;
 use cmp::Ordering::{Equal,Greater,Less};
 use std::fmt;
 
+use log::{error, warn, info, debug, trace};
+
 type OptBoxNode<K,D> = Option<Box<Node<K,D>>>;
 
 #[derive(Default)]
@@ -30,8 +32,26 @@ where K: fmt::Debug, D: fmt::Debug {
     }
 }
 
+impl<K,D> fmt::Display for Node<K,D>
+where K: fmt::Display,
+      D: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let left = match &self.left {
+            Some(node) => format!("Node {{ {}:{} }}", node.key, node.data),
+            None => String::from("None"),
+        };
+        let right = match &self.right {
+            Some(node) => format!("Node {{ {}:{} }}", node.key, node.data),
+            None => String::from("None"),
+        };
+        write!(f, "{{ {}:{}, left: {}, right: {} }}", &self.key, &self.data, left, right)
+    }
+}
+
 impl<K,D> Node<K,D> 
-where K: Eq + Ord
+where K: Eq + Ord + fmt::Display,
+      D: fmt::Display
 {
     pub fn new(key: K, data: D) -> Self {
         Self { key, data, height: 1, left: None, right: None }
@@ -79,6 +99,7 @@ where K: Eq + Ord
 
     /// recursively search for the given key
     pub fn find(&self, key: K) -> Option<&Node<K,D>> {
+        debug!("searching for key '{}'", key);
         if key == self.key {
             return Some(&self);
         } else if key < self.key {
@@ -99,17 +120,21 @@ where K: Eq + Ord
     /// insert a new key/data pair
     pub fn put(mut self: Box<Self>, key: K, data: D) -> Box<Self> {
         self.height = 0;
+        trace!("put key: {}, data: {} (self: {})", key, data, &*self);
 
         match self.key.cmp(&key) {
             Equal => {
+                trace!("{} == {}", key, self.key);
                 self.data = data;
                 return self;
             },
-            Less => {
+            Greater => {
+                trace!("{} > {}", self.key, key);
                 let l = self.left.take();
                 self.left = self.put_in_child(key, data, l);
             }
-            Greater => { 
+            Less => { 
+                trace!("{} < {}", self.key, key);
                 let r = self.right.take();
                 self.right = self.put_in_child(key, data, r);
             }
@@ -173,16 +198,18 @@ where K: Eq + Ord
     }
 
 
-    /**
+    /*
      *             root                  left
      *            /                     /    \
      *           left    =>     left_left    root
      *          /
      * left_left
      *
-     * applied when a node is inserted in the left subtree of a left subtree
      */
+     /// applied when a node is inserted in the left subtree of a left subtree
+
     fn rotate_right(mut self: Box<Self>) -> Box<Self> {
+        trace!("rotate_right: {}", self);
         let mut left: Box<Node<K,D>> = self.left.take().expect("no left child");
         //let left_left: Box<Node<K,D>> = left.left.take().expect("no left-left child");
 
@@ -191,16 +218,16 @@ where K: Eq + Ord
         return left;
     }
 
-    /** root                           right
+    /* root                           right
      *     \                          /     \
      *      right    =>           root      right_right
      *          \ 
      *           right_right
      * move root to root.right.left and return root.right
-     *
-     * applied when a node is inserted in the right subtree of a right subtree
      */
+     /// applied when a node is inserted in the right subtree of a right subtree
     fn rotate_left(mut self: Box<Self>) -> Box<Self> {
+        trace!("rotate_left: {}", self);
         let mut right: Box<Node<K,D>> = self.right.take().expect("no right child");
         //let right_right: Box<Node<K,D>> = right.right.take().expect("no right-right child");
 
@@ -209,7 +236,7 @@ where K: Eq + Ord
         right
     }
 
-    /**
+    /*
      *     root                   root             left_right
      *    /                      /                 /       \
      *  left           =>      left_right  =>  left        root
@@ -218,14 +245,15 @@ where K: Eq + Ord
      *
      * left-rotate left
      * then right-rotate root
-     * applied when a node is inserted in the right subtree of a left subtree
-     **/
+     */
+     /// applied when a node is inserted in the right subtree of a left subtree
     fn rotate_left_right(mut self: Box<Self>) -> Box<Self> {
+        trace!("rotate_left_right: {}", self);
         self.left = Some(self.left.expect("no left child").rotate_left());
         return self.rotate_right();
     }
 
-    /**
+    /*
      * root              root                  right_left
      *     \                \                  /       \
      *      right   =>      right_left  =>  root        right
@@ -235,9 +263,10 @@ where K: Eq + Ord
      * right-rotate right
      * then left-rotate root
      *
-     * applied when a node is inserted in the left subtree of a right subtree
-     **/
+     */
+     /// applied when a node is inserted in the left subtree of a right subtree
     fn rotate_right_left(mut self: Box<Self>) -> Box<Self> {
+        trace!("rotate_right_left: {}", self);
         self.right = Some(self.right.expect("no right child").rotate_right());
         return self.rotate_left();
     }
@@ -260,4 +289,89 @@ where K: Ord + Eq,
       D: Ord + Eq
 {  }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_env_log::test;
+
+    #[test]
+    fn test_rotate_right () {
+        let mut root = Box::new(Node::new(2isize, "asdf"));
+        let mut left = Box::new(Node::new(1isize, "qwerty"));
+        let mut left_left = Box::new(Node::new(0isize, "zxcv"));
+
+        left.left = Some(left_left);
+        root.left = Some(left);
+
+        assert_eq!(&root.right, &None);
+        assert_eq!(root.left.as_ref().unwrap(), &Box::new(Node::new(1, "qwerty")));
+        assert_eq!(root.left.as_ref().unwrap().left.as_ref().unwrap(), &Box::new(Node::new(0, "zxcv")));
+
+        let new_root = root.rotate_right();
+
+        assert_eq!(new_root, Box::new(Node::new(1isize, "qwerty")));
+        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(2,"asdf")));
+        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(0isize,"zxcv")));
+    }
+
+    #[test]
+    fn test_rotate_left () {
+        let mut root = Box::new(Node::new(2isize, "root"));
+        let mut right = Box::new(Node::new(1isize, "right"));
+        let mut right_right = Box::new(Node::new(0isize, "right_right"));
+
+        right.right= Some(right_right);
+        root.right = Some(right);
+
+        assert_eq!(&root.left, &None);
+        assert_eq!(root.right.as_ref().unwrap(), &Box::new(Node::new(1, "right")));
+        assert_eq!(root.right.as_ref().unwrap().right.as_ref().unwrap(), &Box::new(Node::new(0, "right_right")));
+
+        let new_root = root.rotate_left();
+
+        assert_eq!(new_root, Box::new(Node::new(1isize, "right")));
+        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(2,"root")));
+        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(0isize,"right_right")));
+    }
+
+    #[test]
+    fn test_rotate_right_left () {
+        let mut root = Box::new(Node::new(2, "root"));
+        let mut right = Box::new(Node::new(1, "right"));
+        let mut right_left = Box::new(Node::new(0, "right_left"));
+
+        right.left = Some(right_left);
+        root.right = Some(right);
+
+        assert_eq!(&root.left, &None);
+        assert_eq!(root.right.as_ref().unwrap(), &Box::new(Node::new(1, "right")));
+        assert_eq!(root.right.as_ref().unwrap().left.as_ref().unwrap(), &Box::new(Node::new(0, "right_left")));
+
+        let new_root = root.rotate_right_left();
+
+        assert_eq!(new_root, Box::new(Node::new(0, "right_left")));
+        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(2,"root")));
+        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(1,"right")));
+    }
+
+    #[test]
+    fn test_rotate_left_right () {
+        let mut root = Box::new(Node::new(2, "root"));
+        let mut left = Box::new(Node::new(1, "left"));
+        let mut left_right = Box::new(Node::new(0, "left_right"));
+
+        left.right = Some(left_right);
+        root.left = Some(left);
+
+        assert_eq!(&root.right, &None);
+        assert_eq!(root.left.as_ref().unwrap(), &Box::new(Node::new(1, "left")));
+        assert_eq!(root.left.as_ref().unwrap().right.as_ref().unwrap(), &Box::new(Node::new(0, "left_right")));
+
+        let new_root = root.rotate_left_right();
+
+        assert_eq!(new_root, Box::new(Node::new(0, "left_right")));
+        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(2,"root")));
+        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(1,"left")));
+    }
+}
 
