@@ -1,4 +1,5 @@
 use std::cmp;
+use cmp::Ordering::{Equal,Greater,Less};
 use std::mem;
 
 type OptBoxNode<K,D> = Option<Box<Node<K,D>>>;
@@ -31,8 +32,7 @@ where K: fmt::Debug, D: fmt::Debug {
 }
 
 impl<K,D> Node<K,D> 
-where K: PartialEq + PartialOrd,
-      D: PartialEq + PartialOrd
+where K: Eq + Ord
 {
     pub fn new(key: K, data: D) -> Self {
         Self { key, data, height: 1, left: None, right: None }
@@ -79,9 +79,9 @@ where K: PartialEq + PartialOrd,
     }
 
     /// recursively search for the given key
-    pub fn find(&self, key: K) -> Option<&D> {
+    pub fn find(&self, key: K) -> Option<&Node<K,D>> {
         if key == self.key {
-            return Some(&self.data);
+            return Some(&self);
         } else if key < self.key {
             if let Some(node) = &self.left {
                 return node.find(key);
@@ -97,38 +97,6 @@ where K: PartialEq + PartialOrd,
         }
     }
 
-    /// insert a new key/data pair
-    pub fn put(&mut self, key: K, data: D) -> Result<(), String> {
-        self.height = 0;
-
-        if key == self.key {
-            self.data = data;
-        } else if key < self.key {
-            // key is less than self.key
-            if let Some(node) = &mut self.left {
-                // if we have a left node, recurse to it
-                node.put(key, data)?;
-                self.height = node.height() + 1;
-            } else {
-                // otherwise, create it
-                self.left = Some(Box::new(Node::new(key, data,)));
-            }
-        } else {
-            // key is greater than self.key
-            if let Some(node) = &mut self.right {
-                // if we have a right node, recurse to it
-                node.put(key, data)?;
-                self.height = node.height() + 1;
-            } else {
-                // otherwise, create it
-                self.right = Some(Box::new(Node::new(key, data,)));
-            }
-        }
-
-        //self.rebalance();
-
-        Ok(())
-    }
 
     pub fn left_heavy(&mut self) -> bool {
         if self.balance_factor() < -1 { return true; }
@@ -138,27 +106,50 @@ where K: PartialEq + PartialOrd,
         if self.balance_factor() > 1 { return true; }
         else { return false; }
     }
-
-
-    /* right rotation after a node is inserted in the left subtree of a left subtree
-     * left rotation after a node is inserted in the right subtree of a right subtree
-     * left-right rotation after a node is inserted as the right subtree of a left subtree
-     * right-left rotation after a node is inserted as the left subtree of a right subtree
-     */
-
-
 }
 
 
-/*             root                  left
+/// insert a new key/data pair
+pub fn put<K,D>(root: Box<Node<K,D>>, key: K, data: D) -> Box<Node<K,D>> 
+where K: Ord + Eq
+{
+    root.height = 0;
+
+    match root.key.cmp(&key) {
+        Equal => {
+            root.data = data;
+            return root;
+        },
+        Less => root.left = put_in_child(key, data, root.left),
+        Greater => root.right = put_in_child(key, data, root.left),
+        _ => unreachable!()
+    };
+
+    root.update_height();
+    return rebalance(root);
+}
+
+
+fn put_in_child<K,D>(key: K, data: D, mut child: OptBoxNode<K,D>) -> OptBoxNode<K,D> 
+where K: Ord + Eq {
+    Some(
+        match child {
+            Some(node) => put(node, key, data),
+            None => Box::new(Node::new(key, data))
+        }
+    )
+}
+
+
+/**
+ *             root                  left
  *            /                     /    \
  *           left    =>     left_left    root
  *          /
  * left_left
  *
- *
+ * applied when a node is inserted in the left subtree of a left subtree
  */
-/// applied when a node is inserted in the left subtree of a left subtree
 fn rotate_right<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> {
     let mut left: Box<Node<K,D>> = root.left.take().expect("no left child");
     let left_left: Box<Node<K,D>> = left.left.take().expect("no left-left child");
@@ -168,14 +159,15 @@ fn rotate_right<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> {
     left
 }
 
-/* root                            right
+/** root                           right
  *     \                          /     \
  *      right    =>           root      right_right
  *          \ 
  *           right_right
- *  move self to self.right.left and return self.right
+ * move root to root.right.left and return root.right
+ *
+ * applied when a node is inserted in the right subtree of a right subtree
  */
-/// applied when a node is inserted in the right subtree of a right subtree
 fn rotate_left<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> {
     let mut right: Box<Node<K,D>> = root.right.take().expect("no right child");
     let right_right: Box<Node<K,D>> = right.right.take().expect("no right-right child");
@@ -185,42 +177,48 @@ fn rotate_left<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> {
     right
 }
 
-/*
- *      root                   root             left_right
- *     /                      /                 /       \
- *   left           =>      left_right  =>  left        root
- *     \                     / 
- *      left_right        left 
+/**
+ *     root                   root             left_right
+ *    /                      /                 /       \
+ *  left           =>      left_right  =>  left        root
+ *    \                     / 
+ *     left_right        left 
  *
- *  left-rotate left
- *  then right-rotate root
- */
-/// applied when a node is inserted in the right subtree of a left subtree
+ * left-rotate left
+ * then right-rotate root
+ * applied when a node is inserted in the right subtree of a left subtree
+ **/
 fn rotate_left_right<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> {
     root.left = Some(rotate_left(root.left.expect("no left child")));
     rotate_right(root)
 }
 
-/*
- *  root              root                  right_left
- *      \                \                  /       \
- *       right   =>      right_left  =>  root        right
- *      /                     \
- *  right_left                right 
+/**
+ * root              root                  right_left
+ *     \                \                  /       \
+ *      right   =>      right_left  =>  root        right
+ *     /                     \
+ * right_left                right 
  *
- *  right-rotate right
- *  then left-rotate root
- */
-/// applied when a node is inserted in the left subtree of a right subtree
+ * right-rotate right
+ * then left-rotate root
+ *
+ * applied when a node is inserted in the left subtree of a right subtree
+ **/
 fn rotate_right_left<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> {
     root.right = Some(rotate_right(root.right.expect("no right child")));
     rotate_left(root)
 }
 
+
+/* right rotation after a node is inserted in the left subtree of a left subtree
+ * left rotation after a node is inserted in the right subtree of a right subtree
+ * left-right rotation after a node is inserted as the right subtree of a left subtree
+ * right-left rotation after a node is inserted as the left subtree of a right subtree
+ */
 /// check the balance factor of a subtree rooted at a node and apply any necessary rotations
 fn rebalance<K,D>(mut root: Box<Node<K,D>>) -> Box<Node<K,D>> 
-where K: PartialEq + PartialOrd,
-      D: PartialEq + PartialOrd {
+where K: Eq + Ord, {
     match root.balance_factor() {
         -2 => {
             // the sub-tree rooted at this node is left-heavy
@@ -251,12 +249,18 @@ where K: PartialEq + PartialOrd,
 
 
 impl<K,D> PartialEq for Node<K,D> 
-where K: PartialEq + PartialOrd,
-      D: PartialEq + PartialOrd
+where K: Ord + Eq,
+      D: Ord + Eq
 {
     fn eq(&self, other: &Self) -> bool {
         (self.key == other.key) && (self.data == other.data)
     }
 }
+
+
+impl<K,D> Eq for Node<K,D> 
+where K: Ord + Eq,
+      D: Ord + Eq
+{  }
 
 
