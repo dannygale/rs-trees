@@ -57,6 +57,10 @@ where K: Eq + Ord + fmt::Display,
         Self { key, data, height: 1, left: None, right: None }
     }
 
+    pub fn newbox(key: K, data: D) -> Box<Self> {
+        Box::new(Self::new(key, data))
+    }
+
     fn height(&mut self) -> isize {
         // cache result from potentially expensive drill-down
         // TODO: when does this need to be invalidated?
@@ -148,7 +152,7 @@ where K: Eq + Ord + fmt::Display,
         Some(
             match child {
                 Some(node) => node.put(key, data),
-                None => Box::new(Node::new(key, data))
+                None => Node::newbox(key, data)
             }
         )
     }
@@ -296,82 +300,91 @@ mod tests {
 
     #[test]
     fn test_rotate_right () {
-        let mut root = Box::new(Node::new(2isize, "asdf"));
-        let mut left = Box::new(Node::new(1isize, "qwerty"));
-        let mut left_left = Box::new(Node::new(0isize, "zxcv"));
+        let mut root = Node::newbox(2isize, "asdf");
+        let mut left = Node::newbox(1isize, "qwerty");
+        let mut left_left = Node::newbox(0isize, "zxcv");
 
         left.left = Some(left_left);
         root.left = Some(left);
 
         assert_eq!(&root.right, &None);
-        assert_eq!(root.left.as_ref().unwrap(), &Box::new(Node::new(1, "qwerty")));
-        assert_eq!(root.left.as_ref().unwrap().left.as_ref().unwrap(), &Box::new(Node::new(0, "zxcv")));
+        assert_eq!(root.left.as_ref().unwrap(), &Node::newbox(1, "qwerty"));
+        assert_eq!(root.left.as_ref().unwrap().left.as_ref().unwrap(), &Node::newbox(0, "zxcv"));
 
         let new_root = root.rotate_right();
 
-        assert_eq!(new_root, Box::new(Node::new(1isize, "qwerty")));
-        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(2,"asdf")));
-        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(0isize,"zxcv")));
+        assert_eq!(new_root, Node::newbox(1isize, "qwerty"));
+        assert_eq!(new_root.right.unwrap(), Node::newbox(2,"asdf"));
+        assert_eq!(new_root.left.unwrap(), Node::newbox(0isize,"zxcv"));
     }
 
     #[test]
     fn test_rotate_left () {
-        let mut root = Box::new(Node::new(2isize, "root"));
-        let mut right = Box::new(Node::new(1isize, "right"));
-        let mut right_right = Box::new(Node::new(0isize, "right_right"));
+        let mut root = Node::newbox(2isize, "root");
+        let mut right = Node::newbox(1isize, "right");
+        let mut right_right = Node::newbox(0isize, "right_right");
 
         right.right= Some(right_right);
         root.right = Some(right);
 
         assert_eq!(&root.left, &None);
-        assert_eq!(root.right.as_ref().unwrap(), &Box::new(Node::new(1, "right")));
-        assert_eq!(root.right.as_ref().unwrap().right.as_ref().unwrap(), &Box::new(Node::new(0, "right_right")));
+        assert_eq!(root.right.as_ref().unwrap(), &Node::newbox(1, "right"));
+        assert_eq!(root.right.as_ref().unwrap().right.as_ref().unwrap(), &Node::newbox(0, "right_right"));
 
         let new_root = root.rotate_left();
 
-        assert_eq!(new_root, Box::new(Node::new(1isize, "right")));
-        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(2,"root")));
-        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(0isize,"right_right")));
+        assert_eq!(new_root, Node::newbox(1isize, "right"));
+        assert_eq!(new_root.left.unwrap(), Node::newbox(2,"root"));
+        assert_eq!(new_root.right.unwrap(), Node::newbox(0isize,"right_right"));
     }
 
     #[test]
     fn test_rotate_right_left () {
-        let mut root = Box::new(Node::new(2, "root"));
-        let mut right = Box::new(Node::new(1, "right"));
-        let mut right_left = Box::new(Node::new(0, "right_left"));
+        let mut root = Node::newbox(2, "root");
+        let mut right = Node::newbox(1, "right");
+        let mut right_left = Node::newbox(0, "right_left");
 
         right.left = Some(right_left);
         root.right = Some(right);
 
         assert_eq!(&root.left, &None);
-        assert_eq!(root.right.as_ref().unwrap(), &Box::new(Node::new(1, "right")));
-        assert_eq!(root.right.as_ref().unwrap().left.as_ref().unwrap(), &Box::new(Node::new(0, "right_left")));
+        assert_eq!(root.right.as_ref().unwrap(), &Node::newbox(1, "right"));
+        assert_eq!(root.right.as_ref().unwrap().left.as_ref().unwrap(), &Node::newbox(0, "right_left"));
 
         let new_root = root.rotate_right_left();
 
-        assert_eq!(new_root, Box::new(Node::new(0, "right_left")));
-        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(2,"root")));
-        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(1,"right")));
+        assert_eq!(new_root, Node::newbox(0, "right_left"));
+        assert_eq!(new_root.left.unwrap(), Node::newbox(2,"root"));
+        assert_eq!(new_root.right.unwrap(), Node::newbox(1,"right"));
     }
 
     #[test]
     fn test_rotate_left_right () {
-        let mut root = Box::new(Node::new(2, "root"));
-        let mut left = Box::new(Node::new(1, "left"));
-        let mut left_right = Box::new(Node::new(0, "left_right"));
+        let mut root = Node::newbox(2, "root");
+        let mut left = Node::newbox(1, "left");
+        let mut left_right = Node::newbox(0, "left_right");
 
         left.right = Some(left_right);
         root.left = Some(left);
 
         assert_eq!(&root.right, &None);
-        assert_eq!(root.left.as_ref().unwrap(), &Box::new(Node::new(1, "left")));
-        assert_eq!(root.left.as_ref().unwrap().right.as_ref().unwrap(), &Box::new(Node::new(0, "left_right")));
+        assert_eq!(root.left.as_ref().unwrap(), &Node::newbox(1, "left"));
+        assert_eq!(root.left.as_ref().unwrap().right.as_ref().unwrap(), &Node::newbox(0, "left_right"));
 
         let new_root = root.rotate_left_right();
 
-        assert_eq!(new_root, Box::new(Node::new(0, "left_right")));
-        assert_eq!(new_root.right.unwrap(), Box::new(Node::new(2,"root")));
-        assert_eq!(new_root.left.unwrap(), Box::new(Node::new(1,"left")));
+        assert_eq!(new_root, Node::newbox(0, "left_right"));
+        assert_eq!(new_root.right.unwrap(), Node::newbox(2,"root"));
+        assert_eq!(new_root.left.unwrap(), Node::newbox(1,"left"));
+    }
+
+    #[test]
+    fn test_put () {
+        let mut root = Node::newbox(0, 0);
+        root = root.put(1,1);
+
+        root = root.put(2,2);
+
     }
 }
 
