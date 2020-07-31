@@ -54,7 +54,7 @@ where K: Eq + Ord + fmt::Display,
       D: fmt::Display
 {
     pub fn new(key: K, data: D) -> Self {
-        Self { key, data, height: 1, left: None, right: None }
+        Self { key, data, height: 0, left: None, right: None }
     }
 
     pub fn newbox(key: K, data: D) -> Box<Self> {
@@ -75,13 +75,13 @@ where K: Eq + Ord + fmt::Display,
         let mut left_height = 0;
         let mut right_height = 0;
         if let Some(node) = &mut self.left {
-            left_height = node.height() + 1;
+            left_height = node.height();
         } 
         if let Some(node) = &mut self.right {
-            right_height = node.height() + 1;
+            right_height = node.height();
         } 
 
-        self.height = cmp::max(left_height, right_height);
+        self.height = cmp::max(left_height, right_height) + 1;
         self.height
     }
 
@@ -99,6 +99,13 @@ where K: Eq + Ord + fmt::Display,
         }
 
         right_height - left_height
+    }
+
+    pub fn left_heavy(&mut self) -> bool {
+        self.balance_factor() < 0
+    }
+    pub fn right_heavy(&mut self) -> bool {
+        self.balance_factor() > 0
     }
 
     /// recursively search for the given key
@@ -124,22 +131,22 @@ where K: Eq + Ord + fmt::Display,
     /// insert a new key/data pair
     pub fn put(mut self: Box<Self>, key: K, data: D) -> Box<Self> {
         self.height = 0;
-        trace!("put key: {}, data: {} (self: {})", key, data, &*self);
+        trace!("put {}:{} into self: {}", key, data, &*self);
 
         match self.key.cmp(&key) {
             Equal => {
-                trace!("{} == {}", key, self.key);
+                trace!("{} == {}, replacing data", self.key, key);
                 self.data = data;
                 return self;
             },
             Greater => {
-                trace!("{} > {}", self.key, key);
                 let l = self.left.take();
+                trace!("new key {} < self.key {}, putting in left child", key, self.key);
                 self.left = self.put_in_child(key, data, l);
             }
             Less => { 
-                trace!("{} < {}", self.key, key);
                 let r = self.right.take();
+                trace!("new key {} > self.key {}, putting in right child", key, self.key);
                 self.right = self.put_in_child(key, data, r);
             }
         };
@@ -152,7 +159,10 @@ where K: Eq + Ord + fmt::Display,
         Some(
             match child {
                 Some(node) => node.put(key, data),
-                None => Node::newbox(key, data)
+                None => {
+                    trace!("creating new node");
+                    Node::newbox(key, data)
+                }
             }
         )
     }
@@ -165,41 +175,39 @@ where K: Eq + Ord + fmt::Display,
     /// check the balance factor of a subtree rooted at a node and apply any necessary rotations
     fn rebalance(mut self: Box<Self>) -> Box<Node<K,D>> 
     where K: Eq + Ord, {
-        match self.balance_factor() {
+        let bf = self.balance_factor();
+        trace!("balance factor {} for {}", &bf, &self);
+        match bf {
             -2 => {
                 // the sub-tree rooted at this node is left-heavy
-                let mut left: Box<Node<K,D>> = self.left.expect("no left node");
+                let left: &mut Box<Node<K,D>> = self.left.as_mut().expect("no left node");
                 // if the left node is left-heavy, we have a simple rotation
                 if left.left_heavy() {
-                    return left.rotate_right();
+                    trace!("left node is left heavy: left = {}", &left);
+                    return self.rotate_right();
                 } else {
                     // left node is right-heavy, do a left-right rotation
-                    return left.rotate_left_right();
+                    trace!("left node is right heavy: left = {}", &left);
+                    return self.rotate_left_right();
                 }
             }
             2 => {
                 // the sub-tree rooted at this node is right-heavy
-                let mut right: Box<Node<K,D>> = self.right.expect("no right node");
+                let right: &mut Box<Node<K,D>> = self.right.as_mut().expect("no right node");
                 // if the right node is right-heavy, we have a simple rotation
                 if right.right_heavy() {
-                    return right.rotate_left();
+                    trace!("right node is right heavy: right = {}", &right);
+                    return self.rotate_left();
                 } else {
                     // right node is left-heavy, do a right-left rotation
-                    return right.rotate_right_left();
+                    trace!("right node is left heavy: right = {}", &right);
+                    return self.rotate_right_left();
                 }
             }
             _ => return self
         };
     }
 
-    pub fn left_heavy(&mut self) -> bool {
-        if self.balance_factor() < -1 { return true; }
-        else { return false; }
-    }
-    pub fn right_heavy(&mut self) -> bool {
-        if self.balance_factor() > 1 { return true; }
-        else { return false; }
-    }
 
 
     /*
@@ -233,6 +241,7 @@ where K: Eq + Ord + fmt::Display,
     fn rotate_left(mut self: Box<Self>) -> Box<Self> {
         trace!("rotate_left: {}", self);
         let mut right: Box<Node<K,D>> = self.right.take().expect("no right child");
+        trace!("rotate_left: right_child: {}", &right);
         //let right_right: Box<Node<K,D>> = right.right.take().expect("no right-right child");
 
         self.right = right.left;
@@ -297,6 +306,26 @@ where K: Ord + Eq,
 mod tests {
     use super::*;
     use test_env_log::test;
+
+    #[test]
+    fn test_balance_factor () {
+        let mut root = Node::newbox(2, "root");
+        let mut left = Node::newbox(1, "left");
+        let mut left_left = Node::newbox(0, "left_left");
+
+        left.left = Some(left_left);
+        left.update_height();
+        assert_eq!(left.height, 2);
+        assert_eq!(left.as_mut().balance_factor(), -1);
+        assert_eq!(left.as_mut().left_heavy(), true);
+
+        root.left = Some(left);
+        root.update_height();
+
+        assert_eq!(root.balance_factor(), -2);
+        assert!(root.left_heavy());
+        let left: &mut Box<Node<isize, &str>> = root.left.as_mut().unwrap();
+    }
 
     #[test]
     fn test_rotate_right () {
@@ -383,7 +412,13 @@ mod tests {
         let mut root = Node::newbox(0, 0);
         root = root.put(1,1);
 
+        assert_eq!(root.right, Some(Node::newbox(1,1)));
+        assert_eq!(root.left, None);
+
         root = root.put(2,2);
+        trace!("{}", &root);
+        trace!("{}", root.left.as_ref().unwrap());
+        assert_eq!(root, Node::newbox(1,1));
 
     }
 }
