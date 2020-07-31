@@ -17,8 +17,7 @@ pub struct Node<K, D> {
     pub right: OptBoxNode<K,D>,
 }
 
-impl<K,D> fmt::Debug for Node<K,D> 
-where K: fmt::Debug, D: fmt::Debug {
+impl<K: fmt::Debug, D: fmt::Debug> fmt::Debug for Node<K,D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let left = match &self.left {
             Some(node) => format!("Node {{ {:?}:{:?} }}", node.key, node.data),
@@ -32,10 +31,7 @@ where K: fmt::Debug, D: fmt::Debug {
     }
 }
 
-impl<K,D> fmt::Display for Node<K,D>
-where K: fmt::Display,
-      D: fmt::Display
-{
+impl<K: fmt::Debug + fmt::Display, D: fmt::Debug + fmt::Display> fmt::Display for Node<K,D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let left = match &self.left {
             Some(node) => format!("Node {{ {}:{} }}", node.key, node.data),
@@ -49,10 +45,7 @@ where K: fmt::Display,
     }
 }
 
-impl<K,D> Node<K,D> 
-where K: Eq + Ord + fmt::Display,
-      D: fmt::Display
-{
+impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node<K,D>  {
     pub fn new(key: K, data: D) -> Self {
         Self { key, data, height: 0, left: None, right: None }
     }
@@ -64,9 +57,11 @@ where K: Eq + Ord + fmt::Display,
     fn height(&mut self) -> isize {
         // cache result from potentially expensive drill-down
         // TODO: when does this need to be invalidated?
+        /*
         if self.height != 0 {
             return self.height;
         }
+        */
 
         self.update_height()
     }
@@ -82,23 +77,37 @@ where K: Eq + Ord + fmt::Display,
         } 
 
         self.height = cmp::max(left_height, right_height) + 1;
-        self.height
+        return self.height;
     }
 
     /// return the difference in height between the right tree and the left tree
     /// a positive value indicates that the right tree is deeper
     /// a negative value indicates that the left tree is deeper
     pub fn balance_factor(&mut self) -> isize {
-        let mut left_height = 0;
-        let mut right_height = 0;
-        if let Some(node) = &mut self.left {
-            left_height = node.height();
-        }
-        if let Some(node) = &mut self.right {
-            right_height = node.height();
-        }
+        return self.right_height() - self.left_height();
+    }
 
-        right_height - left_height
+    fn right_height(&mut self) -> isize {
+        return match &mut self.right {
+            Some(node) => node.height(),
+            None => 0
+        };
+        /*
+        if let Some(node) = &mut self.right {
+            return node.height();
+        } else { return 0 };
+        */
+    }
+    fn left_height(&mut self) -> isize {
+        return match &mut self.left {
+            Some(node) => node.height(),
+            None => 0
+        };
+        /*
+        if let Some(node) = &mut self.left {
+            return node.height();
+        } else { return 0 };
+        */
     }
 
     pub fn left_heavy(&mut self) -> bool {
@@ -151,7 +160,6 @@ where K: Eq + Ord + fmt::Display,
             }
         };
 
-        self.update_height();
         return self.rebalance();
     }
 
@@ -171,6 +179,7 @@ where K: Eq + Ord + fmt::Display,
      * left rotation after a node is inserted in the right subtree of a right subtree
      * left-right rotation after a node is inserted as the right subtree of a left subtree
      * right-left rotation after a node is inserted as the left subtree of a right subtree
+     * ref: https://www.educative.io/edpresso/common-avl-rotation-techniques
      */
     /// check the balance factor of a subtree rooted at a node and apply any necessary rotations
     fn rebalance(mut self: Box<Self>) -> Box<Node<K,D>> 
@@ -287,20 +296,14 @@ where K: Eq + Ord + fmt::Display,
 }
 
 
-impl<K,D> PartialEq for Node<K,D> 
-where K: Ord + Eq,
-      D: Ord + Eq
-{
+impl<K: Ord + Eq,D: Ord + Eq> PartialEq for Node<K,D>  {
     fn eq(&self, other: &Self) -> bool {
         (self.key == other.key) && (self.data == other.data)
     }
 }
 
 
-impl<K,D> Eq for Node<K,D> 
-where K: Ord + Eq,
-      D: Ord + Eq
-{  }
+impl<K: Ord + Eq, D: Ord + Eq> Eq for Node<K,D> {  }
 
 #[cfg(test)]
 mod tests {
@@ -324,7 +327,6 @@ mod tests {
 
         assert_eq!(root.balance_factor(), -2);
         assert!(root.left_heavy());
-        let left: &mut Box<Node<isize, &str>> = root.left.as_mut().unwrap();
     }
 
     #[test]

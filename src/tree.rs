@@ -69,7 +69,7 @@ struct AVLTree<K,D> {
 }
 
 impl <'a, K,D> AVLTree<K,D> 
-where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
 {
     pub fn new() -> Self {
         Self {
@@ -100,7 +100,7 @@ where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
         let mut v = Vec::new();
         loop {
             if let Some(node) = iter.next() {
-                v.push((node.key, node.data))
+                v.push((node.key.clone(), node.data.clone()))
             } else {
                 return v;
             }
@@ -109,12 +109,12 @@ where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
 }
 
 impl<K,D> From <&Vec<(K,D)>> for AVLTree<K,D> 
-where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug 
 {
     fn from(nodes: &Vec<(K,D)>) -> AVLTree<K,D>{
         let mut tree = AVLTree::new();
         for node in nodes {
-            tree.put(node.0, node.1);
+            tree.put(node.0.clone(), node.1.clone());
         }
         return tree;
     }
@@ -122,7 +122,7 @@ where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
 
 use std::iter::{Iterator, FromIterator, IntoIterator};
 impl <K,D> FromIterator <Node<K,D>> for AVLTree<K,D> 
-where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
 {
     fn from_iter<I: IntoIterator<Item = Node<K,D>>>(iter: I) -> Self {
         let mut tree = Self::new();
@@ -133,83 +133,39 @@ where K: Ord + Eq + Copy + fmt::Display, D: Copy + fmt::Display
     }
 }
 
-/*
-impl<K,D> IntoIterator for AVLTree<K,D> 
-where K: PartialEq + PartialOrd,
-      D: PartialEq + PartialOrd
-{
-    type Item = (K,D);
-    type IntoIter = std::vec::IntoIter<Self::Item>;
 
-    fn into_iter(self) -> Self::IntoIter {
-    }
-}
-*/
-
-/*
-use proptest::prelude::*;
-
-fn arb_node(max_qty: usize) -> impl Strategy<Value = Node<isize, String>> {
-    (any::<isize>(), "[a-z]*")
-        .prop_map(|(key, data)| Node::new(key, data))
-        .boxed()
-}
-
-prop_compose! {
-    fn arb_node2(_d: isize) 
-        (key in 0..100isize, data in "[a-z]*")
-            -> Node<isize, String> {
-                Node::new(key, data) 
-        }
-}
-
-
-proptest! {
-    #[test]
-    fn test_put_inorder_set(nodes in arb_node2(0)) {
-        println!("{:?}", nodes);
-    }
-}
-*/
-
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
-    #[test]
-    fn test_put_inorder_set() {
-        let data = vec![
-            (0, "asdf"),
-            (1, "qwerty"),
-            (2, "zxcv")
-        ];
-        let tree = AVLTree::from(&data);
+    #[quickcheck]
+    fn qc_test_put_set_isize_isize (xs: HashMap<isize, isize>) {
+        let mut vec = xs.iter().map(|(x,y)| (x.clone(),y.clone())).collect();
+        let tree = AVLTree::from(&vec);
 
-        assert!(tree.items().eq(&data));
+        vec.sort_by(|a, b| a.0.cmp(&b.0));
+
+        assert_eq!(tree.items(), vec);
     }
 
-    #[test]
-    fn test_rotate_right() {
-        let data = vec![
-            (2, "zxcv"),
-            (1, "qwerty"),
-            (0, "asdf"),
-        ];
+    #[quickcheck]
+    fn qc_test_put_set_isize_string (xs: HashMap<isize, String>) {
+        let mut vec = xs.iter().map(|(x,y)| (x.clone(),y.clone())).collect();
+        let tree = AVLTree::from(&vec);
 
-        let mut a = Node::new(data[0].0, data[0].1);
-        let mut b = Node::new(data[1].0, data[1].1); 
-        let mut c = Node::new(data[2].0, data[2].1);
+        vec.sort_by(|a, b| a.0.cmp(&b.0));
 
-        let bref = &mut b;
-        let aref = &mut a;
-
-        b.left = Some(Box::new(c));
-        a.left = Some(Box::new(b));
-
-        assert_eq!(*bref.left.unwrap(), c);
-        assert_eq!(*aref.left.unwrap(), b)
+        assert_eq!(tree.items(), vec);
     }
 
+    #[quickcheck]
+    fn qc_test_put_set_string_string (xs: HashMap<String, String>) {
+        let mut vec = xs.iter().map(|(x,y)| (x.clone(),y.clone())).collect();
+        let tree = AVLTree::from(&vec);
+
+        vec.sort_by(|a, b| a.0.cmp(&b.0));
+
+        assert_eq!(tree.items(), vec);
+    }
 }
-*/
