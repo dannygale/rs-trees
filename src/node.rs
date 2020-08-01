@@ -287,14 +287,14 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
     /// in a node with two children, in-order predecessor is right-most child of left subtree
     fn in_order_pred(&self) -> &Box<Self> {
         let node: &Box<Self> = self.left.as_ref().expect("no left child");
-        while let Some(child) = node.right.as_ref() {};
+        while let Some(next) = node.right.as_ref() { node = next };
         return node;
     }
 
     /// in a node with two children, in-order successor is left-most child of right subtree
     fn in_order_succ(&self) -> &Box<Self> {
         let node: &Box<Self> = self.right.as_ref().expect("no right child");
-        while let Some(node) = node.left.as_ref() {};
+        while let Some(next) = node.left.as_ref() { node = next };
         return node;
     }
 
