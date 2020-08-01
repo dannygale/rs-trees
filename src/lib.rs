@@ -5,8 +5,8 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 mod node;
-use node::*;
+pub use node::Node;
 
 mod tree;
-use tree::*;
+pub use tree::AVLTree;
 

@@ -2,6 +2,7 @@ use std::cmp;
 use cmp::Ordering::{Equal,Greater,Less};
 use std::fmt;
 
+#[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
 type OptBoxNode<K,D> = Option<Box<Node<K,D>>>;
@@ -47,11 +48,11 @@ impl<K: fmt::Debug + fmt::Display, D: fmt::Debug + fmt::Display> fmt::Display fo
 
 impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node<K,D>  {
     pub fn new(key: K, data: D) -> Self {
-        Self { key, data, height: 0, left: None, right: None }
+        return Self { key, data, height: 0, left: None, right: None };
     }
 
     pub fn newbox(key: K, data: D) -> Box<Self> {
-        Box::new(Self::new(key, data))
+        return Box::new(Self::new(key, data));
     }
 
     fn height(&mut self) -> isize {
@@ -63,7 +64,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         }
         */
 
-        self.update_height()
+        return self.update_height();
     }
 
     fn update_height(&mut self) -> isize {
@@ -87,29 +88,6 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return self.right_height() - self.left_height();
     }
 
-    fn right_height(&mut self) -> isize {
-        return match &mut self.right {
-            Some(node) => node.height(),
-            None => 0
-        };
-        /*
-        if let Some(node) = &mut self.right {
-            return node.height();
-        } else { return 0 };
-        */
-    }
-    fn left_height(&mut self) -> isize {
-        return match &mut self.left {
-            Some(node) => node.height(),
-            None => 0
-        };
-        /*
-        if let Some(node) = &mut self.left {
-            return node.height();
-        } else { return 0 };
-        */
-    }
-
     pub fn left_heavy(&mut self) -> bool {
         self.balance_factor() < 0
     }
@@ -117,20 +95,33 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         self.balance_factor() > 0
     }
 
+    fn right_height(&mut self) -> isize {
+        return match &mut self.right {
+            Some(node) => node.height(),
+            None => 0
+        };
+    }
+    fn left_height(&mut self) -> isize {
+        return match &mut self.left {
+            Some(node) => node.height(),
+            None => 0
+        };
+    }
+
     /// recursively search for the given key
-    pub fn find(&self, key: K) -> Option<&Node<K,D>> {
+    pub fn get(&self, key: K) -> Option<&Node<K,D>> {
         debug!("searching for key '{}'", key);
         if key == self.key {
             return Some(&self);
         } else if key < self.key {
             if let Some(node) = &self.left {
-                return node.find(key);
+                return node.get(key);
             } else { 
                 return None; 
             }
         } else { // key > self.key
             if let Some(node) = &self.right {
-                return node.find(key);
+                return node.get(key);
             } else { 
                 return None; 
             }
@@ -293,6 +284,20 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return self.rotate_left();
     }
 
+    /// in a node with two children, in-order predecessor is right-most child of left subtree
+    fn in_order_pred(&self) -> &Box<Self> {
+        let node: &Box<Self> = self.left.as_ref().expect("no left child");
+        while let Some(child) = node.right.as_ref() {};
+        return node;
+    }
+
+    /// in a node with two children, in-order successor is left-most child of right subtree
+    fn in_order_succ(&self) -> &Box<Self> {
+        let node: &Box<Self> = self.right.as_ref().expect("no right child");
+        while let Some(node) = node.left.as_ref() {};
+        return node;
+    }
+
 }
 
 
@@ -314,7 +319,7 @@ mod tests {
     fn test_balance_factor () {
         let mut root = Node::newbox(2, "root");
         let mut left = Node::newbox(1, "left");
-        let mut left_left = Node::newbox(0, "left_left");
+        let left_left = Node::newbox(0, "left_left");
 
         left.left = Some(left_left);
         left.update_height();
@@ -333,7 +338,7 @@ mod tests {
     fn test_rotate_right () {
         let mut root = Node::newbox(2isize, "asdf");
         let mut left = Node::newbox(1isize, "qwerty");
-        let mut left_left = Node::newbox(0isize, "zxcv");
+        let left_left = Node::newbox(0isize, "zxcv");
 
         left.left = Some(left_left);
         root.left = Some(left);
@@ -353,7 +358,7 @@ mod tests {
     fn test_rotate_left () {
         let mut root = Node::newbox(2isize, "root");
         let mut right = Node::newbox(1isize, "right");
-        let mut right_right = Node::newbox(0isize, "right_right");
+        let right_right = Node::newbox(0isize, "right_right");
 
         right.right= Some(right_right);
         root.right = Some(right);
@@ -373,7 +378,7 @@ mod tests {
     fn test_rotate_right_left () {
         let mut root = Node::newbox(2, "root");
         let mut right = Node::newbox(1, "right");
-        let mut right_left = Node::newbox(0, "right_left");
+        let right_left = Node::newbox(0, "right_left");
 
         right.left = Some(right_left);
         root.right = Some(right);
@@ -393,7 +398,7 @@ mod tests {
     fn test_rotate_left_right () {
         let mut root = Node::newbox(2, "root");
         let mut left = Node::newbox(1, "left");
-        let mut left_right = Node::newbox(0, "left_right");
+        let left_right = Node::newbox(0, "left_right");
 
         left.right = Some(left_right);
         root.left = Some(left);
