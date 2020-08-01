@@ -327,6 +327,34 @@ mod tests {
     use super::*;
     use test_env_log::test;
 
+    fn test_ordering<K: Ord+Eq+fmt::Display+fmt::Debug+Clone, D: Ord+Eq+fmt::Display+fmt::Debug+Clone>(first: (K,D), second: (K,D)) {
+        let n1 = Node::new(first.0.clone(), first.1.clone());
+        let n2 = Node::new(second.0.clone(), second.1.clone());
+
+        match n1.key.cmp(&n2.key) {
+            // if keys are equal, make sure we are sorting based on data
+            Equal => assert_eq!(first.1.cmp(&second.1), n1.cmp(&n2)),
+            // if keys are not equal, ensure node order matches key order
+            Less => assert_eq!(n1.cmp(&n2), Less),
+            Greater => assert_eq!(n1.cmp(&n2), Greater)
+        }
+    }
+
+    #[quickcheck]
+    fn qc_test_ordering_isize_isize(n1: (isize, isize), n2: (isize, isize)) {
+        test_ordering(n1, n2);
+    }
+
+    #[quickcheck]
+    fn qc_test_ordering_isize_string(n1: (isize, String), n2: (isize, String)) {
+        test_ordering(n1, n2);
+    }
+
+    #[quickcheck]
+    fn qc_test_ordering_string_string(n1: (String, String), n2: (String, String)) {
+        test_ordering(n1, n2);
+    }
+
     #[test]
     fn test_balance_factor () {
         let mut root = Node::newbox(2, "root");
