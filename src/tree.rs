@@ -1,4 +1,4 @@
-use crate::node::Node;
+use crate::node::{Node, NodeIter};
 use std::fmt;
 
 // TODO: use configuration options to handle duplicates
@@ -9,14 +9,13 @@ use std::fmt;
 
 type OptBoxNode<K,D> = Option<Box<Node<K,D>>>;
 
-
-
+// TODO: Entry API: https://doc.rust-lang.org/std/collections/#entries
 pub struct AVLTree<K,D> {
-    root: OptBoxNode<K,D>
+    pub root: OptBoxNode<K,D>
 }
 
 impl <'a, K,D> AVLTree<K,D> 
-where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug
 {
     pub fn new() -> Self {
         Self {
@@ -24,10 +23,17 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display +
         }
     }
 
+    pub fn with_root(root: Node<K,D>) -> Self {
+        let mut tree = AVLTree::new();
+        tree.root = Some(Box::new(root));
+        return tree;
+    }
+
     pub fn iter(self: &'a Self) -> NodeIter<'a, K, D> {
         self.into_iter()       
     }
 
+    /// insert a new key/data pair into the tree
     pub fn put(&mut self, key: K, data: D) -> bool {
         if self.root.is_some() {
             let root = self.root.take().expect("broken");
@@ -38,14 +44,31 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display +
         return true;
     }
 
-    pub fn get(&self, key: K) -> Option<&Node<K,D>> {
+    /// get a copy of the data associated with a given key
+    pub fn get(&self, key: K) -> Option<D> {
         if let Some(root) = self.root.as_ref() {
-            return root.get(key);
+            if let Some(node) = root.get(key) {
+                return Some(node.data.clone());
+            } else {
+                return None;
+            };
         } else { return None }
     }
 
+    /// delete the node specified by key
+    pub fn del(&mut self, key: K) -> bool {
+        if let Some(root) = self.root.take() {
+            if let Ok(node) = root.del(key) {
+                self.root = node;
+                return true;
+            } else {
+                return false;
+            };
+        } else { return false }
+    }
+
     /// return a vector of key/value tuples
-    pub fn items(self) -> Vec<(K,D)> {
+    pub fn items(&self) -> Vec<(K,D)> {
         let mut iter = self.iter();
         let mut v = Vec::new();
         loop {
@@ -56,10 +79,25 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display +
             }
         }
     }
+
+    pub fn merge(self, other: Self) -> Self {
+        match (self.root, other.root) {
+            (None, None) => AVLTree::new(),
+            (Some(node), None) => AVLTree { root: Some(node) },
+            (None, Some(node)) => AVLTree { root: Some(node) },
+            (Some(n1), Some(n2)) => AVLTree { root: Some(n1.merge(n2)) }
+        }
+    }
+
+    pub fn height(&mut self) -> usize {
+        if let Some(ref mut root) = self.root {
+            return root.height();
+        } else { return 0 }
+    }
 }
 
 impl<K,D> From <&Vec<(K,D)>> for AVLTree<K,D> 
-where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug 
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug 
 {
     fn from(nodes: &Vec<(K,D)>) -> AVLTree<K,D>{
         let mut tree = AVLTree::new();
@@ -73,7 +111,7 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display +
 use std::iter::{Iterator, FromIterator, IntoIterator};
 
 impl <K,D> FromIterator <Node<K,D>> for AVLTree<K,D> 
-where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug
 {
     fn from_iter<I: IntoIterator<Item = Node<K,D>>>(iter: I) -> Self {
         let mut tree = Self::new();
@@ -84,70 +122,17 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display +
     }
 }
 
+
 impl <'a, K, D> IntoIterator  for &'a AVLTree<K,D> 
-where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
+//where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug
+//where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
+where K: Ord + Eq, D: Ord + Eq
 {
     type Item = &'a Node<K,D>;
     type IntoIter = NodeIter<'a, K, D>;
 
     fn into_iter(self) -> NodeIter<'a, K, D> {
-        return NodeIter {
-            stack: Vec::new(),
-            curr: &self.root
-        };
-    }
-}
-
-
-pub struct NodeIter<'a, K, D> {
-    stack: Vec<&'a Node<K,D>>,
-    curr: &'a OptBoxNode<K,D>,
-}
-
-impl<'a, K,D> Iterator for NodeIter<'a, K,D> 
-where K: Ord + Eq
-{
-    type Item = &'a Node<K,D>;
-
-    /// iterate over the elements in sorted order
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match *self.curr {
-                // if we're at a node 
-                Some (ref node) => {
-                    // if this node has a left child, save this node on the stack and drill down
-                    if node.left.is_some() {
-                        self.stack.push(&node);
-                        self.curr = &node.left;
-                        continue;
-                    } 
-                    // if this node has a right child, put it on the stack and return this node
-                    if node.right.is_some() {
-                        self.curr = &node.right;
-                        return Some(node);
-                    }
-                    // return this node and on the next iteration return the one from the top of
-                    // the stack
-                    // this is kind of like .take() ourself
-                    self.curr = &None;
-                    return Some(node);
-                }
-
-                // we're at a leaf. pop the top node off the stack.
-                // if it has a right child, put that on the stack
-                // return the popped top node
-                None =>  {
-                    match self.stack.pop() {
-                        Some(node) => {
-                            self.curr = &node.right;
-                            return Some(node);
-                        }
-                        // end of iteration
-                        None => return None
-                    }
-                }
-            }
-        }
+        return NodeIter::with_root(&self.root);
     }
 }
 
@@ -182,4 +167,8 @@ mod tests {
     fn qc_test_put_set_string_string (xs: HashMap<String, String>) {
         test_put_set(xs);
     }
+
+    // TODO: test get
+    // TODO: test del
+    // TODO: test merge
 }

@@ -12,7 +12,7 @@ pub struct Node<K, D> {
     pub key: K,
     pub data: D,
 
-    pub height: isize,
+    pub height: usize,
 
     pub left: OptBoxNode<K,D>,
     pub right: OptBoxNode<K,D>,
@@ -55,7 +55,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return Box::new(Self::new(key, data));
     }
 
-    fn height(&mut self) -> isize {
+    pub fn height(&mut self) -> usize {
         // cache result from potentially expensive drill-down
         // TODO: when does this need to be invalidated?
         /*
@@ -67,7 +67,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return self.update_height();
     }
 
-    fn update_height(&mut self) -> isize {
+    fn update_height(&mut self) -> usize {
         let mut left_height = 0;
         let mut right_height = 0;
         if let Some(node) = &mut self.left {
@@ -77,7 +77,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
             right_height = node.height();
         } 
 
-        self.height = cmp::max(left_height, right_height) + 1;
+        self.height = (cmp::max(left_height, right_height) + 1) as usize;
         return self.height;
     }
 
@@ -85,7 +85,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
     /// a positive value indicates that the right tree is deeper
     /// a negative value indicates that the left tree is deeper
     pub fn balance_factor(&mut self) -> isize {
-        return self.right_height() - self.left_height();
+        return self.right_height() as isize - self.left_height() as isize;
     }
 
     pub fn left_heavy(&mut self) -> bool {
@@ -95,13 +95,13 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         self.balance_factor() > 0
     }
 
-    fn right_height(&mut self) -> isize {
+    fn right_height(&mut self) -> usize {
         return match &mut self.right {
             Some(node) => node.height(),
             None => 0
         };
     }
-    fn left_height(&mut self) -> isize {
+    fn left_height(&mut self) -> usize {
         return match &mut self.left {
             Some(node) => node.height(),
             None => 0
@@ -246,7 +246,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
 
         self.right = right.left;
         right.left = Some(self);
-        right
+        return right;
     }
 
     /*
@@ -298,6 +298,67 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return node;
     }
 
+    fn pop_min(mut self: Box<Self>) -> (Option<Box<Self>>, Box<Self>) {
+        match self.left {
+            Some(node) => {
+                let (root, min) = node.pop_min();
+                if let Some(node) = root {
+                    return (Some(node.rebalance()), min);
+                } else { return (None, min) }
+            } 
+            None => {
+                // no left child -- this is the min
+                return (self.right.take(), self)
+            }
+        }
+    }
+
+    pub fn merge(self: Box<Self>, other: Box<Self>) -> Box<Self> {
+        let (tree, min) = self.pop_min();
+        let mut root = min;
+        root.left = Some(other);
+        root.right = tree;
+        return root.rebalance();
+    }
+
+    fn delete(self: Box<Self>) -> Option<Box<Self>> {
+        match (self.left, self.right) {
+            (None, None) => None,
+            (Some(left), None) => Some(left),
+            (None, Some(right)) => Some(right),
+            (Some(left), Some(right)) => Some(right.merge(left))
+        }
+    }
+
+    pub fn del(mut self: Box<Self>, key: K) -> Result<Option<Box<Self>>, String> {
+        match self.key.cmp(&key) {
+            Equal => return Ok(self.delete()),
+            Greater => {
+                // key < self.key -- go left
+                if let Some(child) = self.left {
+                    match child.del(key) {
+                        Ok(node) => {
+                            self.left = node;
+                            return Ok(Some(self.rebalance()));
+                        },
+                        Err(e) => return Err(e)
+                    }
+                } else { return Err(String::from("could not find node")) }
+            },
+            Less => {
+                // key > self.key -- go right
+                if let Some(child) = self.right {
+                    match child.del(key) {
+                        Ok(node) => {
+                            self.right = node;
+                            return Ok(Some(self.rebalance()));
+                        },
+                        Err(e) => return Err(e)
+                    }
+                } else { return Err(String::from("could not find node")) }
+            }
+        }
+    }
 }
 
 
@@ -309,7 +370,6 @@ impl<K: Ord + Eq,D: Ord + Eq> PartialEq for Node<K,D>  {
 
 impl<K: Ord + Eq, D: Ord + Eq> Eq for Node<K,D> {  }
 
-
 impl<K: Ord + Eq,D: Ord + Eq> Ord for Node<K,D>  {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         return (&self.key, &self.data).cmp(&(&other.key, &other.data));
@@ -319,6 +379,65 @@ impl<K: Ord + Eq,D: Ord + Eq> Ord for Node<K,D>  {
 impl<K: Ord + Eq,D: Ord + Eq> PartialOrd for Node<K,D>  {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         return Some(self.cmp(other));
+    }
+}
+
+pub struct NodeIter<'a, K, D> {
+    stack: Vec<&'a Node<K,D>>,
+    curr: &'a OptBoxNode<K, D>
+}
+
+impl<'a, K, D> NodeIter<'a, K, D> {
+    pub fn new() -> NodeIter<'a, K, D> {
+        NodeIter {
+            stack: Vec::new(),
+            curr: &None
+        }
+    }
+
+    pub fn with_root(root: &'a OptBoxNode<K,D>) -> NodeIter<'a, K, D> {
+        NodeIter {
+            stack: Vec::new(),
+            curr: root
+        }
+    }
+}
+
+impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
+    type Item = &'a Node<K,D>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // iterate in-order -- left, self, right
+        loop {
+            match *self.curr {
+                Some (ref node) => {
+                    if node.left.is_some() {
+                        self.stack.push(&node);
+                        self.curr = &node.left;
+                        continue;
+                    }
+
+                    if node.right.is_some() {
+                        self.curr = &node.right;
+                        return Some(node);
+                    }
+
+                    self.curr = &None;
+                    return Some(node);
+                }
+
+                None => {
+                    match self.stack.pop() {
+                        Some(node) => {
+                            self.curr = &node.right;
+                            return Some(node);
+                        }
+                        // end of iteration
+                        None => return None
+                    }
+                }
+            }
+        }
     }
 }
 
