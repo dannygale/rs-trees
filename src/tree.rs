@@ -132,7 +132,10 @@ where K: Ord + Eq, D: Ord + Eq
     type IntoIter = NodeIter<'a, K, D>;
 
     fn into_iter(self) -> NodeIter<'a, K, D> {
-        return NodeIter::with_root(&self.root);
+        if let Some(node) = &self.root {
+            return NodeIter::with_root(&node);
+        } else { return NodeIter::new() 
+        }
     }
 }
 

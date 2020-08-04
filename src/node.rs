@@ -384,21 +384,21 @@ impl<K: Ord + Eq,D: Ord + Eq> PartialOrd for Node<K,D>  {
 
 pub struct NodeIter<'a, K, D> {
     stack: Vec<&'a Node<K,D>>,
-    curr: &'a OptBoxNode<K, D>
+    curr: Option<&'a Box<Node<K, D>>>
 }
 
 impl<'a, K, D> NodeIter<'a, K, D> {
     pub fn new() -> NodeIter<'a, K, D> {
         NodeIter {
             stack: Vec::new(),
-            curr: &None
+            curr: None
         }
     }
 
-    pub fn with_root(root: &'a OptBoxNode<K,D>) -> NodeIter<'a, K, D> {
+    pub fn with_root(root: &'a Box<Node<K,D>>) -> NodeIter<'a, K, D> {
         NodeIter {
             stack: Vec::new(),
-            curr: root
+            curr: Some(root)
         }
     }
 }
@@ -409,27 +409,27 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
     fn next(&mut self) -> Option<Self::Item> {
         // iterate in-order -- left, self, right
         loop {
-            match *self.curr {
-                Some (ref node) => {
+            match self.curr.take() {
+                Some (ref mut node) => {
                     if node.left.is_some() {
                         self.stack.push(&node);
-                        self.curr = &node.left;
+                        self.curr = node.left.as_ref();
                         continue;
                     }
 
                     if node.right.is_some() {
-                        self.curr = &node.right;
+                        self.curr = node.right.as_ref();
                         return Some(node);
                     }
 
-                    self.curr = &None;
+                    self.curr = None;
                     return Some(node);
                 }
 
                 None => {
                     match self.stack.pop() {
                         Some(node) => {
-                            self.curr = &node.right;
+                            self.curr = node.right.as_ref();
                             return Some(node);
                         }
                         // end of iteration
