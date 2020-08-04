@@ -108,6 +108,19 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt
     }
 }
 
+use std::collections::HashMap;
+impl<K,D> From <&HashMap<K,D>> for AVLTree<K,D> 
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug 
+{
+    fn from(nodes: &HashMap<K,D>) -> AVLTree<K,D>{
+        let mut tree = AVLTree::new();
+        for (key, data) in nodes.iter() {
+            tree.put(key.clone(), data.clone());
+        }
+        return tree;
+    }
+}
+
 use std::iter::{Iterator, FromIterator, IntoIterator};
 
 impl <K,D> FromIterator <Node<K,D>> for AVLTree<K,D> 
@@ -134,8 +147,7 @@ where K: Ord + Eq, D: Ord + Eq
     fn into_iter(self) -> NodeIter<'a, K, D> {
         if let Some(node) = &self.root {
             return NodeIter::with_root(&node);
-        } else { return NodeIter::new() 
-        }
+        } else { return NodeIter::new() }
     }
 }
 
@@ -150,7 +162,7 @@ mod tests {
         where K: Ord + Eq + Clone + fmt::Display + fmt::Debug,
               D: Ord + Eq + Clone + fmt::Display + fmt::Debug
     {
-        let mut vec = xs.iter().map(|(x,y)| (x.clone(),y.clone())).collect();
+        let mut vec: Vec<(K,D)> = xs.iter().map(|(x,y)| (x.clone(),y.clone())).collect();
         let tree = AVLTree::from(&vec);
         vec.sort_by(|a, b| a.0.cmp(&b.0));
         assert_eq!(tree.items(), vec);

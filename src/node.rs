@@ -299,12 +299,16 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
     }
 
     fn pop_min(mut self: Box<Self>) -> (Option<Box<Self>>, Box<Self>) {
-        match self.left {
+        match self.left.take() {
             Some(node) => {
+                // recursively look for the min key
                 let (root, min) = node.pop_min();
+                // if there is a node to the left, recurse to it and return what comes back
+                // if there's no node to the left after removing the min, return self as root) 
                 if let Some(node) = root {
-                    return (Some(node.rebalance()), min);
-                } else { return (None, min) }
+                    self.left = Some(node);
+                    return (Some(self.rebalance()), min);
+                } else { return (Some(self), min) }
             } 
             None => {
                 // no left child -- this is the min
@@ -573,19 +577,75 @@ mod tests {
         assert_eq!(new_root.left.unwrap(), Node::newbox(1,"left"));
     }
 
-    #[test]
-    fn test_put () {
-        let mut root = Node::newbox(0, 0);
-        root = root.put(1,1);
+    use std::collections::HashMap;
+    use crate::tree::AVLTree;
 
-        assert_eq!(root.right, Some(Node::newbox(1,1)));
-        assert_eq!(root.left, None);
+    fn vec_from_hashmap<K,D>(data: HashMap<K,D>) -> Vec<(K,D)>
+    where K: Ord + Eq + Clone,
+          D: Ord + Eq + Clone
+    {
+        return data.iter().map(|(x,y)| (x.clone(), y.clone())).collect();
+    }
 
-        root = root.put(2,2);
-        trace!("{}", &root);
-        trace!("{}", root.left.as_ref().unwrap());
-        assert_eq!(root, Node::newbox(1,1));
+    fn test_put<K,D>(data: HashMap<K,D>) 
+    where K: Ord + Eq + Clone + fmt::Display + fmt::Debug,
+          D: Ord + Eq + Clone + fmt::Display + fmt::Debug,
+    
+    {
+        let t = AVLTree::from(&data);
+        let mut v = vec_from_hashmap(data);
+
+        v.sort_by(|a,b| a.cmp(&b));
+        assert_eq!(t.items(), v);
 
     }
+    #[quickcheck]
+    fn qc_test_put_isize_isize(data: HashMap<isize, isize>) { test_put(data) }
+    #[quickcheck]
+    fn qc_test_put_isize_string(data: HashMap<isize, String>) { test_put(data) }
+    #[quickcheck]
+    fn qc_test_put_string_string(data: HashMap<String, String>) { test_put(data) }
+
+
+    fn test_get<K,D>(data: HashMap<K,D>) 
+    where K: Ord + Eq + Clone + fmt::Display + fmt::Debug,
+          D: Ord + Eq + Clone + fmt::Display + fmt::Debug,
+    
+    {
+        let t = AVLTree::from(&data);
+        for (k,d) in data {
+            assert_eq!(t.get(k).unwrap(), d);
+        }
+    }
+    #[quickcheck]
+    fn qc_test_get_isize_isize(data: HashMap<isize, isize>) { test_get(data) }
+    #[quickcheck]
+    fn qc_test_get_isize_string(data: HashMap<isize, String>) { test_get(data) }
+    #[quickcheck]
+    fn qc_test_get_string_string(data: HashMap<String, String>) { test_get(data) }
+
+    #[quickcheck]
+    fn test_pop_min(data: HashMap<isize, isize>) {
+        if data.len() < 2 { return }
+
+        let mut v = vec_from_hashmap(data);
+        let t = AVLTree::from(&v);
+
+        v.sort_by(|a,b| a.cmp(&b));
+        v.remove(0);
+        let (root, _min) = t.root.unwrap().pop_min();
+
+        let mut t = AVLTree::new();
+        t.root = root;
+
+        assert_eq!(t.items(), v);
+    }
+
+    // TODO: test merge
+
+
+
+    // TODO: test del
+
 }
 

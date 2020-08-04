@@ -35,6 +35,7 @@ dependencies = [
  "pretty_env_logger",
  "quickcheck",
  "quickcheck_macros",
+ "rand",
  "test-env-log",
 ]
 
