@@ -303,8 +303,9 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
             Some(node) => {
                 // recursively look for the min key
                 let (root, min) = node.pop_min();
-                // if there is a node to the left, recurse to it and return what comes back
-                // if there's no node to the left after removing the min, return self as root) 
+                // if there is a node to the left, recurse to it, save the result as the new
+                // self.left, and return self.rebalance()
+                // if there's no node to the left after removing the min, return self as root
                 if let Some(node) = root {
                     self.left = Some(node);
                     return (Some(self.rebalance()), min);
@@ -318,9 +319,9 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
     }
 
     pub fn merge(self: Box<Self>, other: Box<Self>) -> Box<Self> {
-        let (tree, min) = self.pop_min();
+        let (tree, min) = other.pop_min();
         let mut root = min;
-        root.left = Some(other);
+        root.left = Some(self);
         root.right = tree;
         return root.rebalance();
     }
@@ -642,7 +643,34 @@ mod tests {
     }
 
     // TODO: test merge
+    use rand::prelude::*;
+    #[quickcheck]
+    fn qc_test_merge(data: HashMap<isize, isize>) {
+        if data.len() < 2 {return};
 
+        let mut rng = rand::thread_rng();
+        let idx = rng.gen_range(0, data.len()-1);
+
+        let mut data_vec = vec_from_hashmap(data);
+        let mut v1 = Vec::new();
+        let mut v2 = Vec::new();
+
+        for i in 0..idx {
+            v1.push(data_vec[i]);
+        }
+
+        for i in idx..data_vec.len() {
+            v2.push(data_vec[i]);
+        }
+
+        let t1 = AVLTree::from(&v1);
+        let t2 = AVLTree::from(&v2);
+
+        data_vec.sort_by(|a,b| (a.cmp(&b)));
+        let mut merged_tree = t1.merge(t2);
+
+        assert_eq!(merged_tree.items(), data_vec);
+    }
 
 
     // TODO: test del
