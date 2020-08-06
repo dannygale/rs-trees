@@ -746,43 +746,7 @@ mod tests {
         assert_eq!(t.items(), v);
     }
 
-    // TODO: test merge
     use rand::prelude::*;
-    /*
-    #[quickcheck]
-    fn qc_test_merge(data: HashMap<isize, isize>) {
-        if data.len() < 2 {return};
-
-        let mut rng = rand::thread_rng();
-        let idx = rng.gen_range(0, data.len()-1);
-
-        let mut data_vec = vec_from_hashmap(data);
-        let mut v1 = Vec::new();
-        let mut v2 = Vec::new();
-
-        for i in 0..idx {
-            v1.push(data_vec[i]);
-        }
-
-        for i in idx..data_vec.len() {
-            v2.push(data_vec[i]);
-        }
-
-        let t1 = AVLTree::from(&v1);
-        let t2 = AVLTree::from(&v2);
-
-        data_vec.sort_by(|a,b| (a.cmp(&b)));
-        trace!("data_vec: {:#?}", &data_vec);
-        let mut merged_tree = t1.merge(t2);
-        trace!("merged_tree: {:#?}", &merged_tree);
-
-        assert_eq!(merged_tree.items(), data_vec);
-    }
-    */
-
-
-
-    // TODO: test del
     #[quickcheck]
     fn qc_test_del(data: HashMap<isize, isize>) {
         if data.len() < 3 { return }
