@@ -67,6 +67,13 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt
         } else { return false }
     }
 
+    /// insert an existing node without reallocating the memory
+    pub fn ins(&mut self, node: Box<Node<K,D>> ) {
+        if let Some(root) = self.root.take() {
+            self.root = Some(root.ins(node));
+        } else { self.root = Some(node) }
+    }
+
     /// return a vector of key/value tuples
     pub fn items(&self) -> Vec<(K,D)> {
         let mut iter = self.iter();
@@ -80,14 +87,14 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt
         }
     }
 
+    // TODO: write merge using Node.ins
+    /*
     pub fn merge(self, other: Self) -> Self {
-        match (self.root, other.root) {
-            (None, None) => AVLTree::new(),
-            (Some(node), None) => AVLTree { root: Some(node) },
-            (None, Some(node)) => AVLTree { root: Some(node) },
-            (Some(n1), Some(n2)) => AVLTree { root: Some(n1.merge(n2)) }
+        for node in other {
+            self.put
         }
     }
+    */
 
     pub fn height(&mut self) -> usize {
         if let Some(ref mut root) = self.root {
@@ -137,8 +144,6 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt
 
 
 impl <'a, K, D> IntoIterator  for &'a AVLTree<K,D> 
-//where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug
-//where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Clone + fmt::Display + fmt::Debug
 where K: Ord + Eq, D: Ord + Eq
 {
     type Item = &'a Node<K,D>;
@@ -148,6 +153,17 @@ where K: Ord + Eq, D: Ord + Eq
         if let Some(node) = &self.root {
             return NodeIter::with_root(&node);
         } else { return NodeIter::new() }
+    }
+}
+
+impl <K: fmt::Debug, D: fmt::Debug> fmt::Debug for AVLTree<K,D> {
+    fn fmt( &self, formatter: &mut fmt::Formatter ) -> fmt::Result {
+        if formatter.alternate() {
+            // pretty print
+            return write!(formatter, "{:#?}", self.root);
+        } else {
+            return write!(formatter, "{:?}", self.root);
+        }
     }
 }
 

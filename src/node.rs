@@ -20,6 +20,7 @@ pub struct Node<K, D> {
 
 impl<K: fmt::Debug, D: fmt::Debug> fmt::Debug for Node<K,D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: implement f.alternate() to pretty print
         let left = match &self.left {
             Some(node) => format!("Node {{ {:?}:{:?} }}", node.key, node.data),
             None => String::from("None"),
@@ -28,7 +29,7 @@ impl<K: fmt::Debug, D: fmt::Debug> fmt::Debug for Node<K,D> {
             Some(node) => format!("Node {{ {:?}:{:?} }}", node.key, node.data),
             None => String::from("None"),
         };
-        write!(f, "{{ {:?}:{:?}, left: {:?}, right: {:?} }}", &self.key, &self.data, left, right)
+        return write!(f, "{{ {:?}:{:?}, left: {:?}, right: {:?} }}", &self.key, &self.data, left, right);
     }
 }
 
@@ -55,6 +56,10 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return Box::new(Self::new(key, data));
     }
 
+    pub fn iter_breadth<'a>(self: &'a Box<Self>) -> BreadthIter<'a,K,D> {
+        return BreadthIter::with_root(self);
+    }
+
     pub fn height(&mut self) -> usize {
         // cache result from potentially expensive drill-down
         // TODO: when does this need to be invalidated?
@@ -68,16 +73,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
     }
 
     fn update_height(&mut self) -> usize {
-        let mut left_height = 0;
-        let mut right_height = 0;
-        if let Some(node) = &mut self.left {
-            left_height = node.height();
-        } 
-        if let Some(node) = &mut self.right {
-            right_height = node.height();
-        } 
-
-        self.height = (cmp::max(left_height, right_height) + 1) as usize;
+        self.height = (cmp::max(self.left_height(), self.right_height()) + 1) as usize;
         return self.height;
     }
 
@@ -87,14 +83,12 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
     pub fn balance_factor(&mut self) -> isize {
         return self.right_height() as isize - self.left_height() as isize;
     }
-
     pub fn left_heavy(&mut self) -> bool {
         self.balance_factor() < 0
     }
     pub fn right_heavy(&mut self) -> bool {
         self.balance_factor() > 0
     }
-
     fn right_height(&mut self) -> usize {
         return match &mut self.right {
             Some(node) => node.height(),
@@ -128,6 +122,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         }
     }
 
+    /*
     /// insert a new key/data pair
     pub fn put(mut self: Box<Self>, key: K, data: D) -> Box<Self> {
         self.height = 0;
@@ -164,6 +159,36 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
                 }
             }
         )
+    }
+    */
+    /// insert a new key/data pair
+    pub fn put(self: Box<Self>, key: K, data: D) -> Box<Self> {
+        let node = Node::newbox(key, data);
+        return self.ins(node);
+    }
+
+
+    /// insert an already-allocated node
+    pub fn ins(mut self: Box<Self>, other: Box<Node<K,D>>) -> Box<Self> {
+        match self.key.cmp(&other.key) {
+            Equal => return other,
+            Greater => {
+                let l = self.left.take();
+                self.left = self.ins_in_child(other, l)
+            }
+            Less => {
+                let r = self.right.take();
+                self.right = self.ins_in_child(other, r)
+            }
+        }
+        return self.rebalance();
+    }
+
+    fn ins_in_child(&mut self, other: Box<Node<K,D>>, child: OptBoxNode<K,D>) -> OptBoxNode<K,D> {
+        return Some(match child {
+            Some(node) => node.ins(other),
+            None => other
+        })
     }
 
     /* right rotation after a node is inserted in the left subtree of a left subtree
@@ -284,6 +309,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return self.rotate_left();
     }
 
+    /*
     /// in a node with two children, in-order predecessor is right-most child of left subtree
     fn in_order_pred(&self) -> &Box<Self> {
         let mut node: &Box<Self> = self.left.as_ref().expect("no left child");
@@ -297,19 +323,19 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         while let Some(next) = node.left.as_ref() { node = next };
         return node;
     }
+    */
+
+    fn pop_min_from_child(mut self: Box<Self>, child: Box<Self>) -> (Option<Box<Self>>, Box<Self>) {
+        let (left, min) = child.pop_min();
+        self.left = left;
+        return (Some(self.rebalance()), min);
+    }
 
     fn pop_min(mut self: Box<Self>) -> (Option<Box<Self>>, Box<Self>) {
         match self.left.take() {
             Some(node) => {
                 // recursively look for the min key
-                let (root, min) = node.pop_min();
-                // if there is a node to the left, recurse to it, save the result as the new
-                // self.left, and return self.rebalance()
-                // if there's no node to the left after removing the min, return self as root
-                if let Some(node) = root {
-                    self.left = Some(node);
-                    return (Some(self.rebalance()), min);
-                } else { return (Some(self), min) }
+                return self.pop_min_from_child(node);
             } 
             None => {
                 // no left child -- this is the min
@@ -318,10 +344,11 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         }
     }
 
-    pub fn merge(self: Box<Self>, other: Box<Self>) -> Box<Self> {
-        let (tree, min) = other.pop_min();
+    fn merge(self: Box<Self>, other: Box<Self>) -> Box<Self> {
+        trace!("merge {} and {}", &self, &other);
+        let (tree, min) = self.pop_min();
         let mut root = min;
-        root.left = Some(self);
+        root.left = Some(other);
         root.right = tree;
         return root.rebalance();
     }
@@ -445,6 +472,83 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
         }
     }
 }
+
+use std::collections::vec_deque::VecDeque;
+
+pub struct BreadthIter<'a, K, D> {
+    queue: VecDeque<&'a Node<K,D>>,
+    curr: Option<&'a Box<Node<K, D>>>
+}
+
+impl<'a, K, D> BreadthIter<'a, K, D> {
+    pub fn new() -> BreadthIter<'a, K, D> {
+        BreadthIter {
+            queue: VecDeque::new(),
+            curr: None
+        }
+    }
+
+    pub fn with_root(root: &'a Box<Node<K,D>>) -> BreadthIter<'a, K, D> {
+        BreadthIter {
+            queue: VecDeque::new(),
+            curr: Some(root)
+        }
+    }
+}
+
+impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for BreadthIter<'a,K,D> {
+    type Item = &'a Node<K,D>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // iterate breadth-first -- replace stack from NodeIter with Queue
+        loop {
+            match self.curr.take() {
+                Some (ref mut node) => {
+                    if node.left.is_some() {
+                        self.queue.push_back(&node);
+                        self.curr = node.left.as_ref();
+                        continue;
+                    }
+
+                    if node.right.is_some() {
+                        self.curr = node.right.as_ref();
+                        return Some(node);
+                    }
+
+                    self.curr = None;
+                    return Some(node);
+                }
+
+                None => {
+                    match self.queue.pop_front() {
+                        Some(node) => {
+                            self.curr = node.right.as_ref();
+                            return Some(node);
+                        }
+                        // end of iteration
+                        None => return None
+                    }
+                }
+            }
+        }
+    }
+}
+
+use std::iter::FromIterator;
+impl <K,D> FromIterator<(K,D)> for Box<Node<K,D>>
+where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug
+{
+    fn from_iter<I: IntoIterator<Item=(K,D)>>(iter: I) -> Self {
+        let mut root: OptBoxNode<K,D> = None;
+        for (key, data) in iter {
+            if let Some(node) = root {
+                root = Some(node.put(key, data));
+            } else { root = Some(Node::newbox(key, data)) }
+        }
+        return root.unwrap();
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -611,7 +715,6 @@ mod tests {
     fn test_get<K,D>(data: HashMap<K,D>) 
     where K: Ord + Eq + Clone + fmt::Display + fmt::Debug,
           D: Ord + Eq + Clone + fmt::Display + fmt::Debug,
-    
     {
         let t = AVLTree::from(&data);
         for (k,d) in data {
@@ -633,8 +736,9 @@ mod tests {
         let t = AVLTree::from(&v);
 
         v.sort_by(|a,b| a.cmp(&b));
+        let (root, min) = t.root.unwrap().pop_min();
+        assert_eq!(v[0], (min.key, min.data));
         v.remove(0);
-        let (root, _min) = t.root.unwrap().pop_min();
 
         let mut t = AVLTree::new();
         t.root = root;
@@ -644,6 +748,7 @@ mod tests {
 
     // TODO: test merge
     use rand::prelude::*;
+    /*
     #[quickcheck]
     fn qc_test_merge(data: HashMap<isize, isize>) {
         if data.len() < 2 {return};
@@ -667,13 +772,34 @@ mod tests {
         let t2 = AVLTree::from(&v2);
 
         data_vec.sort_by(|a,b| (a.cmp(&b)));
+        trace!("data_vec: {:#?}", &data_vec);
         let mut merged_tree = t1.merge(t2);
+        trace!("merged_tree: {:#?}", &merged_tree);
 
         assert_eq!(merged_tree.items(), data_vec);
     }
+    */
+
 
 
     // TODO: test del
+    #[quickcheck]
+    fn qc_test_del(data: HashMap<isize, isize>) {
+        if data.len() < 3 { return }
+
+        let mut vec: Vec<(_,_)> = vec_from_hashmap(data);
+        let mut tree = AVLTree::from(&vec);
+
+        let mut rng = rand::thread_rng();
+        vec.sort_by(|a,b| (a.cmp(&b)));
+
+        for _i in 0..rng.gen() {
+            let (delkey, _delval) = vec.remove(rng.gen_range(1, vec.len()));
+            tree.del(delkey);
+            assert_eq!(tree.items(), vec);
+        }
+
+    }
 
 }
 
