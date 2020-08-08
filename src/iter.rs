@@ -223,40 +223,6 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
         }
 
         //return (self.next_fn)(self);
-
-        /*
-        // iterate in-order -- left, self, right
-        loop {
-            match self.curr.take() {
-                Some (ref mut node) => {
-                    // go left first, if it's there
-                    if node.left.is_some() {
-                        // save this node so we can come back to it later
-                        self.deque.push(&node);
-                        // drop into the left node
-                        self.curr = node.left.as_ref();
-                        continue;
-                    }
-
-                    // if there's a right child, make sure it's next
-                    self.curr = if let Some(right) = &node.right { Some(right) } else {None};
-                    // return this node
-                    return Some((&node.key, &node.data));
-                }
-
-                None => {
-                    match self.deque.pop() {
-                        Some(node) => {
-                            self.curr = node.right.as_ref();
-                            return Some((&node.key, &node.data));
-                        }
-                        // end of iteration
-                        None => return None
-                    }
-                }
-            }
-        }
-        */
     }
 }
 
