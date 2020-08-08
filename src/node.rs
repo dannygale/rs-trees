@@ -56,9 +56,30 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return Box::new(Self::new(key, data));
     }
 
+    /*
     pub fn iter_breadth<'a>(self: &'a Box<Self>) -> BreadthIter<'a,K,D> {
         return BreadthIter::with_root(self);
     }
+    */
+
+    /*
+    /// iterate left, middle, right
+    pub fn iter_inorder<'a>(self: &'a Box<Self>) -> NodeIter<'a, K, D> {
+        
+    }
+    /// iterate right, middle, left
+    pub fn iter_inorder_reverse<'a>(self: &'a Box<Self>) -> NodeIter<'a, K, D> {
+        
+    }
+    /// iterate middle, left, right
+    pub fn iter_preorder<'a>(self: &'a Box<Self>) -> NodeIter<'a, K, D> {
+        
+    }
+    /// iterate left, right, middle
+    pub fn iter_postorder<'a>(self: &'a Box<Self>) -> NodeIter<'a, K, D> {
+        
+    }
+    */
 
     pub fn height(&mut self) -> usize {
         // cache result from potentially expensive drill-down
@@ -414,141 +435,6 @@ impl<K: Ord + Eq,D: Ord + Eq> PartialOrd for Node<K,D>  {
     }
 }
 
-pub struct NodeIter<'a, K, D> {
-    stack: Vec<&'a Node<K,D>>,
-    curr: Option<&'a Box<Node<K, D>>>
-}
-
-impl<'a, K, D> NodeIter<'a, K, D> {
-    pub fn new() -> NodeIter<'a, K, D> {
-        NodeIter {
-            stack: Vec::new(),
-            curr: None
-        }
-    }
-
-    pub fn with_root(root: &'a Box<Node<K,D>>) -> NodeIter<'a, K, D> {
-        NodeIter {
-            stack: Vec::new(),
-            curr: Some(root)
-        }
-    }
-}
-
-impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
-    type Item = &'a Node<K,D>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // iterate in-order -- left, self, right
-        loop {
-            match self.curr.take() {
-                Some (ref mut node) => {
-                    if node.left.is_some() {
-                        self.stack.push(&node);
-                        self.curr = node.left.as_ref();
-                        continue;
-                    }
-
-                    if node.right.is_some() {
-                        self.curr = node.right.as_ref();
-                        return Some(node);
-                    }
-
-                    self.curr = None;
-                    return Some(node);
-                }
-
-                None => {
-                    match self.stack.pop() {
-                        Some(node) => {
-                            self.curr = node.right.as_ref();
-                            return Some(node);
-                        }
-                        // end of iteration
-                        None => return None
-                    }
-                }
-            }
-        }
-    }
-}
-
-use std::collections::vec_deque::VecDeque;
-
-pub struct BreadthIter<'a, K, D> {
-    queue: VecDeque<&'a Node<K,D>>,
-    curr: Option<&'a Box<Node<K, D>>>
-}
-
-impl<'a, K, D> BreadthIter<'a, K, D> {
-    pub fn new() -> BreadthIter<'a, K, D> {
-        BreadthIter {
-            queue: VecDeque::new(),
-            curr: None
-        }
-    }
-
-    pub fn with_root(root: &'a Box<Node<K,D>>) -> BreadthIter<'a, K, D> {
-        BreadthIter {
-            queue: VecDeque::new(),
-            curr: Some(root)
-        }
-    }
-}
-
-impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for BreadthIter<'a,K,D> {
-    type Item = &'a Node<K,D>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // iterate breadth-first -- replace stack from NodeIter with Queue
-        loop {
-            match self.curr.take() {
-                Some (ref mut node) => {
-                    if node.left.is_some() {
-                        self.queue.push_back(&node);
-                        self.curr = node.left.as_ref();
-                        continue;
-                    }
-
-                    if node.right.is_some() {
-                        self.curr = node.right.as_ref();
-                        return Some(node);
-                    }
-
-                    self.curr = None;
-                    return Some(node);
-                }
-
-                None => {
-                    match self.queue.pop_front() {
-                        Some(node) => {
-                            self.curr = node.right.as_ref();
-                            return Some(node);
-                        }
-                        // end of iteration
-                        None => return None
-                    }
-                }
-            }
-        }
-    }
-}
-
-use std::iter::FromIterator;
-impl <K,D> FromIterator<(K,D)> for Box<Node<K,D>>
-where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt::Display + fmt::Debug
-{
-    fn from_iter<I: IntoIterator<Item=(K,D)>>(iter: I) -> Self {
-        let mut root: OptBoxNode<K,D> = None;
-        for (key, data) in iter {
-            if let Some(node) = root {
-                root = Some(node.put(key, data));
-            } else { root = Some(Node::newbox(key, data)) }
-        }
-        return root.unwrap();
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -751,13 +637,14 @@ mod tests {
     fn qc_test_del(data: HashMap<isize, isize>) {
         if data.len() < 3 { return }
 
-        let mut vec: Vec<(_,_)> = vec_from_hashmap(data);
+        let mut vec: Vec<(isize,isize)> = vec_from_hashmap(data);
         let mut tree = AVLTree::from(&vec);
 
         let mut rng = rand::thread_rng();
         vec.sort_by(|a,b| (a.cmp(&b)));
 
-        for _i in 0..rng.gen() {
+        for i in 0..rng.gen_range(0, vec.len()) {
+            if i < vec.len() - 1 {continue}
             let (delkey, _delval) = vec.remove(rng.gen_range(1, vec.len()));
             tree.del(delkey);
             assert_eq!(tree.items(), vec);
@@ -766,4 +653,3 @@ mod tests {
     }
 
 }
-

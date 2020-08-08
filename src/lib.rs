@@ -10,3 +10,5 @@ pub use node::Node;
 mod tree;
 pub use tree::AVLTree;
 
+mod iter;
+pub use iter::NodeIter;

@@ -1,4 +1,4 @@
-use crate::node::{Node, NodeIter};
+use crate::{Node, NodeIter};
 use std::fmt;
 
 // TODO: use configuration options to handle duplicates
