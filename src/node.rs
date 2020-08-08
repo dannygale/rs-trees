@@ -2,6 +2,8 @@ use std::cmp;
 use cmp::Ordering::{Equal,Greater,Less};
 use std::fmt;
 
+use crate::{NodeIter, BreadthIter};
+
 #[allow(unused_imports)]
 use log::{error, warn, info, debug, trace};
 
@@ -56,11 +58,9 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         return Box::new(Self::new(key, data));
     }
 
-    /*
     pub fn iter_breadth<'a>(self: &'a Box<Self>) -> BreadthIter<'a,K,D> {
         return BreadthIter::with_root(self);
     }
-    */
 
     /*
     /// iterate left, middle, right

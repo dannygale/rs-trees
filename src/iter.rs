@@ -95,7 +95,8 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
 */
 
 impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
-    type Item = &'a Node<K,D>;
+    //type Item = &'a Node<K,D>;
+    type Item = (&'a K, &'a D);
 
     fn next(&mut self) -> Option<Self::Item> {
         // iterate in-order -- left, self, right
@@ -116,19 +117,19 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for NodeIter<'a,K,D> {
                         // if there's a right node, make sure it's next
                         self.curr = node.right.as_ref();
                         // return this node
-                        return Some(node);
+                        return Some((&node.key, &node.data));
                     }
 
                     // so now visit this node
                     self.curr = None;
-                    return Some(node);
+                    return Some((&node.key, &node.data));
                 }
 
                 None => {
                     match self.deque.pop() {
                         Some(node) => {
                             self.curr = node.right.as_ref();
-                            return Some(node);
+                            return Some((&node.key, &node.data));
                         }
                         // end of iteration
                         None => return None
@@ -149,7 +150,8 @@ pub struct BreadthIter<'a, K, D> {
 }
 
 impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for BreadthIter<'a,K,D> {
-    type Item = &'a Node<K,D>;
+    //type Item = &'a Node<K,D>;
+    type Item = (&'a K, &'a D);
 
     fn next(&mut self) -> Option<Self::Item> {
         // iterate breadth-first -- replace stack from NodeIter with Queue
@@ -164,18 +166,18 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for BreadthIter<'a,K,D> {
 
                     if node.right.is_some() {
                         self.curr = node.right.as_ref();
-                        return Some(node);
+                        return Some((&node.key, &node.data));
                     }
 
                     self.curr = None;
-                    return Some(node);
+                    return Some((&node.key, &node.data));
                 }
 
                 None => {
                     match self.deque.pop_back() {
                         Some(node) => {
                             self.curr = node.right.as_ref();
-                            return Some(node);
+                            return Some((&node.key, &node.data));
                         }
                         // end of iteration
                         None => return None
@@ -185,6 +187,7 @@ impl<'a, K: Ord + Eq, D: Ord + Eq> Iterator for BreadthIter<'a,K,D> {
         }
     }
 }
+
 impl<'a, K, D> BreadthIter<'a, K, D> {
     pub fn new() -> BreadthIter<'a, K, D> {
         BreadthIter {

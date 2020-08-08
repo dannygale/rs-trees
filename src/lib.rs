@@ -11,4 +11,4 @@ mod tree;
 pub use tree::AVLTree;
 
 mod iter;
-pub use iter::NodeIter;
+pub use iter::{NodeIter, BreadthIter};

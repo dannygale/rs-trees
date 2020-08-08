@@ -74,13 +74,13 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt
         } else { self.root = Some(node) }
     }
 
-    /// return a vector of key/value tuples
+    /// return a vector of cloned key/value tuples
     pub fn items(&self) -> Vec<(K,D)> {
         let mut iter = self.iter();
         let mut v = Vec::new();
         loop {
-            if let Some(node) = iter.next() {
-                v.push((node.key.clone(), node.data.clone()))
+            if let Some((key, data)) = iter.next() {
+                v.push((key.clone(), data.clone()))
             } else {
                 return v;
             }
@@ -146,7 +146,8 @@ where K: Ord + Eq + Clone + fmt::Display + fmt::Debug, D: Ord + Eq + Clone + fmt
 impl <'a, K, D> IntoIterator  for &'a AVLTree<K,D> 
 where K: Ord + Eq, D: Ord + Eq
 {
-    type Item = &'a Node<K,D>;
+    //type Item = &'a Node<K,D>;
+    type Item = (&'a K, &'a D);
     type IntoIter = NodeIter<'a, K, D>;
 
     fn into_iter(self) -> NodeIter<'a, K, D> {
