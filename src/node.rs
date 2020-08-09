@@ -365,8 +365,8 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
         }
     }
 
-    fn merge(self: Box<Self>, other: Box<Self>) -> Box<Self> {
-        trace!("merge {} and {}", &self, &other);
+    fn merge_sibling(self: Box<Self>, other: Box<Self>) -> Box<Self> {
+        trace!("merge_sibling {} and {}", &self, &other);
         let (tree, min) = self.pop_min();
         let mut root = min;
         root.left = Some(other);
@@ -379,7 +379,7 @@ impl<K: fmt::Display + fmt::Debug + Eq + Ord, D: fmt::Display + fmt::Debug> Node
             (None, None) => None,
             (Some(left), None) => Some(left),
             (None, Some(right)) => Some(right),
-            (Some(left), Some(right)) => Some(right.merge(left))
+            (Some(left), Some(right)) => Some(right.merge_sibling(left))
         }
     }
 
